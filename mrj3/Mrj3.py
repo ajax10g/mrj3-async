@@ -1,4 +1,4 @@
-"""Control your projector via serial port.
+"""Control your mrj3 via serial port.
 
 .. moduleauthor:: John Brodie <john@brodie.me>
 
@@ -10,7 +10,10 @@ import logging
 
 import serial
 
-PATH = os.path.abspath(os.path.dirname(__file__)) + '/projector_configs/'
+import array
+import re
+
+PATH = os.path.abspath(os.path.dirname(__file__)) + '/mrj3_configs/'
 
 
 class CommandFailedError(Exception):
@@ -33,7 +36,7 @@ class InvalidCommandError(Exception):
     """The given command or action is invalid for the specified device."""
 
 
-class Pyjector(object):
+class Mrj3(object):
 
     possible_pyserial_settings = [
         'port', 'baudrate', 'bytesize', 'parity', 'stopbits', 'timeout',
@@ -67,7 +70,7 @@ class Pyjector(object):
             device_id='benq',
             **kwargs
     ):
-        """Initialize a new Pyjector object.
+        """Initialize a new Mrj3 object.
 
         :param port: The device name or port number your device is connected
             to. If left as ``None``, you must call :func:`open` with the port
@@ -79,7 +82,7 @@ class Pyjector(object):
             .. note::
 
                 Currently, only the default value, 'benq', is supported. Please
-                fill in a config file for your projector and make a pull
+                fill in a config file for your mrj3 and make a pull
                 request!
 
         :param **kwargs: Any extra keyword args will be passed to the internal
@@ -165,7 +168,7 @@ class Pyjector(object):
             raise DeviceConfigMissingError(
                 'Could not find device config with name {0}. '
                 'Check that the file exists in '
-                ' `pyjector/projector_configs/`'.format(device_id)
+                ' `mrj3/mrj3_configs/`'.format(device_id)
             )
         return config
 
@@ -231,7 +234,8 @@ class Pyjector(object):
         if resp != expected:
             logging.error("unexpected response to handshake " + repr(resp))
 
-    def _command_handler(self, command, action):
+    # def _command_handler(self, command, action, data):
+    def _command_handler(self, station, command, action, data):
         """Send the `command` and `action` to the device.
 
         :param command: The command to send, for example, "power".
@@ -247,7 +251,7 @@ class Pyjector(object):
                 '{0} is not a valid action for comand {1}'.format(
                     action, command)
             )
-        command_string = self._create_command_string(command, action)
+        command_string = self._create_command_string(station, command, action, data)
         logging.info("send: " + repr(command_string))
         self._do_handshake()
         self._send(command_string)
@@ -287,15 +291,17 @@ class Pyjector(object):
         if exception_message is not None and exception_message in response:
             raise CommandExceptionError(
                 'Command caused an exception on the device. Your command '
-                'is likely invalid, check your json projector config!'
+                'is likely invalid, check your json mrj3 config!'
             )
 
     def _create_commands(self):
         """Add commands to class."""
         # TODO: Clean this up.
         def _create_handler(command):
-            def handler(action):
-                return self._command_handler(command, action)
+            # def handler(action, data):
+            def handler(station, action, data):
+                # return self._command_handler(command, action, data)
+                return self._command_handler(station, command, action, data)
             return handler
         for command in self.command_spec:
             setattr(self, command, _create_handler(command))
@@ -311,26 +317,81 @@ class Pyjector(object):
             response += self._recv(1)
         return response
 
-    def _create_command_string(self, command, action):
+    def _create_command_string(self, station, command, action, data):
         """Create a command string ready to send to the device.
 
         .. note:: The `command` param will be translated from english
         to the proper command for the device.
 
         """
+        try:
+            stationValue = int(station.upper(), 10)
+            """Keep 0,1,...,8,9 as is"""
+            """Convert 10,11,...,30,31 to A,B,...,U,V"""
+            if 0 <= stationValue <= 9:
+                serial_station = chr(stationValue + (ord('0')-0))
+            elif 10 <= stationValue <= 31:
+                serial_station = chr(stationValue + (ord('A')-10))
+        except:
+            """Allow g,h,...,u,v or G,H,...,U,V"""
+            serial_station = station.upper()
+
         serial_command = self.command_spec[command]['command']
         serial_action  = self.command_spec[command]['actions'][action]
-        command_string = (
-            '{left_surround}{command}{seperator}'
-            '{action}{right_surround}'.format(
-                left_surround=self.config.get('left_surround', ''),
+        if 'data' in self.command_spec[command]:
+            try:
+                """data is expected to be a string of hex bytes separated by white-space(s) or comma(s) ex: '0 9 2a f'"""
+                # data_as_int_list = list((int(x,16) for x in re.split('\W+', data)))
+                # data_as_hexchar_list = list(chr(x) for x in data_as_int_list)
+                # data_as_hexchar_string = ''.join(map(str, data_as_hexchar_list))
+                # serial_data = data_as_hexchar_string
+                serial_data = "".join(re.split('\W+', data))
+            except:
+                print("Error:  Missing parameter!")
+                print("\t..." + " " + command + " " + serial_action + " data(as string of hex bytes ex: '0 11 2a')")
+                exit()
+        else:
+            serial_data = ""
+
+        # command_string = (
+        #     '{left_surround}{command}{seperator}'
+        #     '{action}{right_surround}'.format(
+        #         left_surround=self.config.get('left_surround', ''),
+        #         command=serial_command,
+        #         seperator=self.config.get('seperator', ''),
+        #         action=serial_action,
+        #         right_surround=self.config.get('right_surround', ''),
+        #     )
+        command_without_chksum_string = (
+            '{sta}{command}{stx}'
+            '{action}{data}{etx}'.format(
+                soh=self.config.get('soh', ''),
+                # sta=self.config.get('sta', ''),
+                sta=serial_station,
                 command=serial_command,
-                seperator=self.config.get('seperator', ''),
+                stx=self.config.get('stx', ''),
                 action=serial_action,
-                right_surround=self.config.get('right_surround', ''),
+                data=serial_data,
+                etx=self.config.get('etx', '')
+            )
+        )
+        command_string = (
+            '{soh}{chksumed}{chksum}'.format(
+                soh=self.config.get('soh', ''),
+                chksumed = command_without_chksum_string,
+                chksum = self.calc_chksum(command_without_chksum_string)
             )
         )
         return command_string
+
+    def calc_chksum(self, s):
+        """Return the checksum in ascii code of the bytes represented in string s."""
+        b = bytearray()
+        b.extend(map(ord, s))
+        total_chksum = sum(b)
+        """The desired chksum value is the last 2-digits in ascii code of the total_chksum"""
+        total_chksum_in_ascii = "{0:0{1}x}".format(total_chksum, 2).upper()
+        return total_chksum_in_ascii[-2:]
 
     def get_actions_for_command(self, command):
         """Get a list of all valid actions for a given command."""

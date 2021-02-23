@@ -2,20 +2,25 @@
 
 import argparse
 import logging
-from pyjector import Pyjector
+from mrj3 import Mrj3
 
-parser = argparse.ArgumentParser(description='Control your projector from the command line.')
-parser.add_argument('device', help='The device you wish to control. ex benq')
-parser.add_argument('port', help='The serial port your device is connected to.')
-parser.add_argument('command', help='The command to send to the device. ex: power')
-parser.add_argument('action', help='The action to send to the device. ex: on')
+parser = argparse.ArgumentParser(description='Control your device via serial port from the command line.')
+parser.add_argument('device', help='The device you wish to control. ex mrj3')
+parser.add_argument('port', help='The serial port your device is connected to. ex: /dev/ttyUSB0')
+parser.add_argument('station', help='The station number to send to the device. ex: 0,1,2,...,9,A,B,...V')
+parser.add_argument('command', help='The command to send to the device. ex: others')
+parser.add_argument('action', help='The action to send to the device. ex: swver')
+parser.add_argument('data', help='The data to send to the device.', nargs='?', const="")
 parser.add_argument('-s', '--serial', help='Extra PySerial config values.')
 parser.add_argument("-v", "--verbose", help="verbose output", action="store_const", dest="loglevel", const=logging.INFO, default=logging.WARNING,)
 parser.add_argument("-d", "--debug",   help="print debug",    action="store_const", dest="loglevel", const=logging.DEBUG,)
 args = parser.parse_args()
 
 logging.basicConfig(level=args.loglevel, format='%(created)f %(levelname)s %(message)s')
-pyjector = Pyjector(port=args.port, device_id=args.device)
+# mrj3 = Mrj3.Mrj3(port=args.port, device_id=args.device)
+mrj3 = Mrj3.Mrj3(port=args.port, device_id=args.device)
 
-command = getattr(pyjector, args.command)
-command(args.action)
+command = getattr(mrj3, args.command)
+# command(args.action)
+# command(args.action, args.data)
+command(args.station, args.action, args.data)
