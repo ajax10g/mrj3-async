@@ -235,7 +235,7 @@ class Mrj3(object):
             logging.error("unexpected response to handshake " + repr(resp))
 
     # def _command_handler(self, command, action, data):
-    def _command_handler(self, station, command, action, data):
+    def _command_handler(self, station, command, action, data, error):
         """Send the `command` and `action` to the device.
 
         :param command: The command to send, for example, "power".
@@ -251,7 +251,7 @@ class Mrj3(object):
                 '{0} is not a valid action for comand {1}'.format(
                     action, command)
             )
-        command_string = self._create_command_string(station, command, action, data)
+        command_string = self._create_command_string(station, command, action, data, error)
         logging.info("send: " + repr(command_string))
         self._do_handshake()
         self._send(command_string)
@@ -299,9 +299,9 @@ class Mrj3(object):
         # TODO: Clean this up.
         def _create_handler(command):
             # def handler(action, data):
-            def handler(station, action, data):
+            def handler(station, action, data, error):
                 # return self._command_handler(command, action, data)
-                return self._command_handler(station, command, action, data)
+                return self._command_handler(station, command, action, data, error)
             return handler
         for command in self.command_spec:
             setattr(self, command, _create_handler(command))
@@ -317,7 +317,7 @@ class Mrj3(object):
             response += self._recv(1)
         return response
 
-    def _create_command_string(self, station, command, action, data):
+    def _create_command_string(self, station, command, action, data, error):
         """Create a command string ready to send to the device.
 
         .. note:: The `command` param will be translated from english
@@ -341,10 +341,6 @@ class Mrj3(object):
         if 'data' in self.command_spec[command]:
             try:
                 """data is expected to be a string of hex bytes separated by white-space(s) or comma(s) ex: '0 9 2a f'"""
-                # data_as_int_list = list((int(x,16) for x in re.split('\W+', data)))
-                # data_as_hexchar_list = list(chr(x) for x in data_as_int_list)
-                # data_as_hexchar_string = ''.join(map(str, data_as_hexchar_list))
-                # serial_data = data_as_hexchar_string
                 serial_data = "".join(re.split('\W+', data))
             except:
                 print("Error:  Missing parameter!")
@@ -353,35 +349,55 @@ class Mrj3(object):
         else:
             serial_data = ""
 
-        # command_string = (
-        #     '{left_surround}{command}{seperator}'
-        #     '{action}{right_surround}'.format(
-        #         left_surround=self.config.get('left_surround', ''),
-        #         command=serial_command,
-        #         seperator=self.config.get('seperator', ''),
-        #         action=serial_action,
-        #         right_surround=self.config.get('right_surround', ''),
-        #     )
-        command_without_chksum_string = (
-            '{sta}{command}{stx}'
-            '{action}{data}{etx}'.format(
-                soh=self.config.get('soh', ''),
-                # sta=self.config.get('sta', ''),
-                sta=serial_station,
-                command=serial_command,
-                stx=self.config.get('stx', ''),
-                action=serial_action,
-                data=serial_data,
-                etx=self.config.get('etx', '')
+        if 'error' in self.command_spec[command]:
+            try:
+                """data is expected to be an ascii coded hex byte """
+                serial_error = error
+            except:
+                print("Error:  Missing parameter!")
+                print("\t..." + " " + command + " " + serial_action + " error(as string of hex bytes ex: '0 11 2a')")
+                exit()
+        else:
+            serial_error = ""
+
+        if command == "slave":
+            command_without_chksum_string = (
+                '{sta}{error}'
+                '{data}{etx}'.format(
+                    sta=serial_station,
+                    error=serial_error,
+                    data=serial_data,
+                    etx=self.config.get('etx', '')
+                )
             )
-        )
-        command_string = (
-            '{soh}{chksumed}{chksum}'.format(
-                soh=self.config.get('soh', ''),
-                chksumed = command_without_chksum_string,
-                chksum = self.calc_chksum(command_without_chksum_string)
+            command_string = (
+                '{stx}{chksumed}{chksum}'.format(
+                    stx=self.config.get('stx', ''),
+                    chksumed = command_without_chksum_string,
+                    chksum = self.calc_chksum(command_without_chksum_string)
+                )
             )
-        )
+        else:
+            command_without_chksum_string = (
+                '{sta}{command}{stx}'
+                '{action}{data}{etx}'.format(
+                    # soh=self.config.get('soh', ''),
+                    # sta=self.config.get('sta', ''),
+                    sta=serial_station,
+                    command=serial_command,
+                    stx=self.config.get('stx', ''),
+                    action=serial_action,
+                    data=serial_data,
+                    etx=self.config.get('etx', '')
+                )
+            )
+            command_string = (
+                '{soh}{chksumed}{chksum}'.format(
+                    soh=self.config.get('soh', ''),
+                    chksumed = command_without_chksum_string,
+                    chksum = self.calc_chksum(command_without_chksum_string)
+                )
+            )
         return command_string
 
     def calc_chksum(self, s):
