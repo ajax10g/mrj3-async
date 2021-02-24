@@ -377,6 +377,12 @@ class Mrj3(object):
                     chksum = self.calc_chksum(command_without_chksum_string)
                 )
             )
+        elif command == "eot":
+            command_string = (
+                '{eot}'.format(
+                    eot=self.config.get('eot', ''),
+                )
+            )
         else:
             command_without_chksum_string = (
                 '{sta}{command}{stx}'

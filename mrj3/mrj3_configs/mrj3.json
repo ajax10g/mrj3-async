@@ -41,6 +41,13 @@
                 "status": "?"
             }
         },
+        "eot": {
+            "command": "eot",
+            "actions": {
+                ".": "",
+                "status": "?"
+            }
+        },
         "slave": {
             "data": "",
             "error": "",
