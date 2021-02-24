@@ -12,6 +12,7 @@ import serial
 
 import array
 import re
+import shlex
 
 PATH = os.path.abspath(os.path.dirname(__file__)) + '/mrj3_configs/'
 
@@ -345,7 +346,8 @@ class Mrj3(object):
             if 'data' in self.command_spec[command]:
                 try:
                     """data is expected to be a string of hex bytes separated by white-space(s) or comma(s) ex: '0 9 2a f'"""
-                    serial_data = "".join(re.split('\W+', data))
+                    """for literal space character(s), bracket it with quotes ex. ' '"""
+                    serial_data = "".join(shlex.split(data))
                 except:
                     print("Error:  Missing parameter!")
                     print("\t..." + " " + command + " " + serial_action + " data(as string of hex bytes ex: '0 11 2a')")
