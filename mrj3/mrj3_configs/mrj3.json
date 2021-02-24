@@ -48,6 +48,15 @@
                 "status": "?"
             }
         },
+        "x": {
+            "data": "",
+            "error": "",
+            "command": "x",
+            "actions": {
+                ".": "",
+                "status": "?"
+            }
+        },
         "slave": {
             "data": "",
             "error": "",

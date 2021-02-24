@@ -235,7 +235,7 @@ class Mrj3(object):
             logging.error("unexpected response to handshake " + repr(resp))
 
     # def _command_handler(self, command, action, data):
-    def _command_handler(self, station, command, action, data, error):
+    def _command_handler(self, station, command, action, data, error, xcommand):
         """Send the `command` and `action` to the device.
 
         :param command: The command to send, for example, "power".
@@ -246,12 +246,13 @@ class Mrj3(object):
         :raises: InvalidCommandError if `action` is not valid for `command`.
 
         """
-        if action not in self.get_actions_for_command(command):
-            raise InvalidCommandError(
-                '{0} is not a valid action for comand {1}'.format(
-                    action, command)
-            )
-        command_string = self._create_command_string(station, command, action, data, error)
+        if command!='x':
+            if action not in self.get_actions_for_command(command):
+                raise InvalidCommandError(
+                    '{0} is not a valid action for comand {1}'.format(
+                        action, command)
+                )
+        command_string = self._create_command_string(station, command, action, data, error, xcommand)
         logging.info("send: " + repr(command_string))
         self._do_handshake()
         self._send(command_string)
@@ -298,10 +299,8 @@ class Mrj3(object):
         """Add commands to class."""
         # TODO: Clean this up.
         def _create_handler(command):
-            # def handler(action, data):
-            def handler(station, action, data, error):
-                # return self._command_handler(command, action, data)
-                return self._command_handler(station, command, action, data, error)
+            def handler(station, action, data, error, xcommand):
+                return self._command_handler(station, command, action, data, error, xcommand)
             return handler
         for command in self.command_spec:
             setattr(self, command, _create_handler(command))
@@ -317,7 +316,7 @@ class Mrj3(object):
             response += self._recv(1)
         return response
 
-    def _create_command_string(self, station, command, action, data, error):
+    def _create_command_string(self, station, command, action, data, error, xcommand):
         """Create a command string ready to send to the device.
 
         .. note:: The `command` param will be translated from english
@@ -336,18 +335,23 @@ class Mrj3(object):
             """Allow g,h,...,u,v or G,H,...,U,V"""
             serial_station = station.upper()
 
-        serial_command = self.command_spec[command]['command']
-        serial_action  = self.command_spec[command]['actions'][action]
-        if 'data' in self.command_spec[command]:
-            try:
-                """data is expected to be a string of hex bytes separated by white-space(s) or comma(s) ex: '0 9 2a f'"""
-                serial_data = "".join(re.split('\W+', data))
-            except:
-                print("Error:  Missing parameter!")
-                print("\t..." + " " + command + " " + serial_action + " data(as string of hex bytes ex: '0 11 2a')")
-                exit()
+        if command == 'x':
+            serial_command = xcommand
+            serial_action  = action
+            serial_data = data
         else:
-            serial_data = ""
+            serial_command = self.command_spec[command]['command']
+            serial_action  = self.command_spec[command]['actions'][action]
+            if 'data' in self.command_spec[command]:
+                try:
+                    """data is expected to be a string of hex bytes separated by white-space(s) or comma(s) ex: '0 9 2a f'"""
+                    serial_data = "".join(re.split('\W+', data))
+                except:
+                    print("Error:  Missing parameter!")
+                    print("\t..." + " " + command + " " + serial_action + " data(as string of hex bytes ex: '0 11 2a')")
+                    exit()
+            else:
+                serial_data = ""
 
         if 'error' in self.command_spec[command]:
             try:
@@ -387,8 +391,6 @@ class Mrj3(object):
             command_without_chksum_string = (
                 '{sta}{command}{stx}'
                 '{action}{data}{etx}'.format(
-                    # soh=self.config.get('soh', ''),
-                    # sta=self.config.get('sta', ''),
                     sta=serial_station,
                     command=serial_command,
                     stx=self.config.get('stx', ''),

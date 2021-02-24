@@ -3,6 +3,7 @@
 import argparse
 import logging
 from mrj3 import Mrj3
+import string
 
 parser = argparse.ArgumentParser(description='Control your device via serial port from the command line.')
 parser.add_argument('-d', '--device', help='The device you wish to control. ex mrj3', nargs='?', default='mrj3')
@@ -20,5 +21,17 @@ args = parser.parse_args()
 logging.basicConfig(level=args.loglevel, format='%(created)f %(levelname)s %(message)s')
 mrj3 = Mrj3.Mrj3(port=args.port, device_id=args.device)
 
-command = getattr(mrj3, args.command)
-command(args.station, args.action, args.data, args.error)
+# command = getattr(mrj3, args.command)
+# command(args.station, args.action, args.data, args.error, args.xcommand)
+command_args_text = args.command
+xcommand_text = ""
+
+# Check if args.command contains only hex digits
+if all(c in string.hexdigits for c in command_args_text):
+    command_text = 'x'
+    xcommand_text = command_args_text
+else:
+    command_text = command_args_text
+
+command = getattr(mrj3, command_text)
+command(args.station, args.action, args.data, args.error, xcommand_text)
