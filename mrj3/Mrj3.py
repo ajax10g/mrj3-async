@@ -17,6 +17,29 @@ import shlex
 PATH = os.path.abspath(os.path.dirname(__file__)) + '/mrj3_configs/'
 
 
+BLU = '\u001b[44;1m'
+CYN = '\u001b[46;1m'
+GRN = '\u001b[42;1m'
+MGT = '\u001b[45;1m'
+RED = '\u001b[41;1m'
+YEL = '\u001b[43;1m'
+REVERSE = '\u001b[7m'
+NORM = '\u001b[0m'
+
+sSOH = '\\x01'
+sSTX = '\\x02'
+sETX = '\\x03'
+sEOT = '\\x04'
+uSOH = BLU + "\u210f" + NORM   # h-bar character w/ red background
+uSTX = BLU +  "\u03b1" + NORM  # Greek alpha character w/ red background
+uETX = BLU + '\u03c9' + NORM;
+rePatternSoh = sSOH + '(\\w)' + '([\\w ]+)' + sSTX + '(\\w.)' + '([\\w ]*)' + sETX + '([\\w ]+)'
+reSubStrSoh =\
+    uSOH + REVERSE + "\\1" + NORM + GRN + "\\2" + NORM + uSTX + GRN + '\\3' + NORM + "\\4" + uETX + YEL + "\\5" + NORM
+"""STX+Sta+Err+[Data]+ETX+Chk""" """Data field is optional"""
+rePatternStx = sSTX + '(\\w)' + '(\\w)' + '([\\w ]*)' + sETX + '([\\w ]+)'
+reSubStrStx = uSTX + REVERSE + "\\1" + NORM + YEL + "\\2" + NORM + "\\3" + uETX + YEL + "\\4" + NORM
+
 class CommandFailedError(Exception):
     """A command failed, usually due to an invalid state change."""
 
@@ -255,11 +278,14 @@ class Mrj3(object):
                 )
         command_string = self._create_command_string(station, command, action, data, error, xcommand)
         logging.info("send: " + repr(command_string))
+        logging.info("------ " + re.sub(rePatternSoh, reSubStrSoh, command_string))
         self._do_handshake()
         self._send(command_string)
         sleep(self.config.get('wait_time', 1))
         response = self.get_response()
         logging.info("recv: " + repr(response))
+        logging.info("------ " + re.sub(rePatternStx, reSubStrStx, response))
+
         self._check_response(response)
         return response
 
@@ -313,7 +339,8 @@ class Mrj3(object):
 
         """
         response = ''
-        while self.serial.inWaiting() > 0:
+        # while self.serial.inWaiting() > 0:
+        while self.serial.in_waiting > 0:
             response += self._recv(1)
         return response
 
