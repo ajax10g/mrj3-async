@@ -37,7 +37,7 @@ rePatternSoh = sSOH + '(\\w)' + '([\\w ]+)' + sSTX + '(\\w.)' + '([\\w ]*)' + sE
 reSubStrSoh =\
     uSOH + REVERSE + "\\1" + NORM + GRN + "\\2" + NORM + uSTX + GRN + '\\3' + NORM + "\\4" + uETX + YEL + "\\5" + NORM
 """STX+Sta+Err+[Data]+ETX+Chk""" """Data field is optional"""
-rePatternStx = sSTX + '(\\w)' + '(\\w)' + '([\\w ]*)' + sETX + '([\\w ]+)'
+rePatternStx = sSTX + '(\\w)' + '(\\w)' + '(.*)' + sETX + '(\\w+)'
 reSubStrStx = uSTX + REVERSE + "\\1" + NORM + YEL + "\\2" + NORM + "\\3" + uETX + YEL + "\\4" + NORM
 
 class CommandFailedError(Exception):
